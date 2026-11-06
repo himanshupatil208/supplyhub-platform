@@ -1,5 +1,5 @@
 
-const BASE = import.meta.env.VITE_API_BASE_URL || '/api'
+const BASE = import.meta.env.VITE_API_BASE_URL || ''
 
 export async function api<T>(
   path: string,
@@ -82,4 +82,5 @@ export type Notice = {
   referenceId: string
   createdAt: string
 }
+
 
