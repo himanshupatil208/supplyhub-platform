@@ -1,0 +1,99 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: supplyhub
+      POSTGRES_USER: supplyhub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - supplyhub_prod_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supplyhub -d supplyhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  catalog-service:
+    image: ghcr.io/himanshupatil208/supplyhub-catalog-service:${IMAGE_TAG:?Set IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplyhub?currentSchema=catalog
+      SPRING_DATASOURCE_USERNAME: supplyhub
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  inventory-service:
+    image: ghcr.io/himanshupatil208/supplyhub-inventory-service:${IMAGE_TAG:?Set IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      CATALOG_SERVICE_URL: http://catalog-service:8081
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplyhub?currentSchema=inventory
+      SPRING_DATASOURCE_USERNAME: supplyhub
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  customer-service:
+    image: ghcr.io/himanshupatil208/supplyhub-customer-service:${IMAGE_TAG:?Set IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplyhub?currentSchema=customers
+      SPRING_DATASOURCE_USERNAME: supplyhub
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  order-service:
+    image: ghcr.io/himanshupatil208/supplyhub-order-service:${IMAGE_TAG:?Set IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplyhub?currentSchema=orders
+      SPRING_DATASOURCE_USERNAME: supplyhub
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      INVENTORY_SERVICE_URL: http://inventory-service:8082
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
+    depends_on:
+      postgres:
+        condition: service_healthy
+      inventory-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+
+  notification-service:
+    image: ghcr.io/himanshupatil208/supplyhub-notification-service:${IMAGE_TAG:?Set IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplyhub?currentSchema=notifications
+      SPRING_DATASOURCE_USERNAME: supplyhub
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api-gateway:
+    image: ghcr.io/himanshupatil208/supplyhub-api-gateway:${IMAGE_TAG:?Set IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      - catalog-service
+      - inventory-service
+      - customer-service
+      - order-service
+      - notification-service
+
+  frontend:
+    image: ghcr.io/himanshupatil208/supplyhub-frontend:${IMAGE_TAG:?Set IMAGE_TAG}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8088:80"
+    depends_on:
+      - api-gateway
+
+volumes:
+  supplyhub_prod_data:
