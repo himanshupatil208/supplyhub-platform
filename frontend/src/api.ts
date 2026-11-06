@@ -1,16 +1,40 @@
 
 const BASE = import.meta.env.VITE_API_BASE_URL || ''
 
+let adminAuthorization: string | null = null
+
+export function setAdminCredentials(
+  username: string,
+  password: string
+) {
+  adminAuthorization = `Basic ${btoa(`${username}:${password}`)}`
+}
+
+export function clearAdminCredentials() {
+  adminAuthorization = null
+}
+
+export function isAdminSessionActive() {
+  return adminAuthorization !== null
+}
+
 export async function api<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const headers = new Headers(options.headers)
+
+  if (options.body != null && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  if (adminAuthorization) {
+    headers.set('Authorization', adminAuthorization)
+  }
+
   const response = await fetch(`${BASE}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    }
+    headers
   })
 
   if (!response.ok) {
@@ -20,6 +44,10 @@ export async function api<T>(
       const body = await response.json()
       message = body.message || body.error || message
     } catch {}
+
+    if (response.status === 401) {
+      message = 'Authentication required or invalid credentials'
+    }
 
     throw new Error(message)
   }

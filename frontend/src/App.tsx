@@ -6,7 +6,17 @@ import {
   Package, Plus, RefreshCw, Search, ShoppingCart,
   Truck, Users, X
 } from 'lucide-react'
-import { api, Product, Stock, Customer, Order, Notice } from './api'
+import {
+  api,
+  isAdminSessionActive,
+  setAdminCredentials,
+  clearAdminCredentials,
+  Product,
+  Stock,
+  Customer,
+  Order,
+  Notice
+} from './api'
 
 type Tab =
   | 'Overview'
@@ -34,6 +44,12 @@ function money(n: number) {
 
 function App() {
   const [tab, setTab] = useState<Tab>('Overview')
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [loginOpen, setLoginOpen] = useState(false)
+  const [loginUsername, setLoginUsername] = useState('admin')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [loginError, setLoginError] = useState('')
+  const [loginLoading, setLoginLoading] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [stock, setStock] = useState<Stock[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -47,34 +63,48 @@ function App() {
   const [toast, setToast] = useState('')
   const [editingStock, setEditingStock] = useState<Stock | null>(null)
 
-  async function load() {
-    setLoading(true)
-    setError('')
 
-    try {
-      const [p, s, c, o, n] = await Promise.all([
-        api<Product[]>('/api/catalog/products'),
-        api<Stock[]>('/api/inventory/stock'),
+async function load() {
+  setLoading(true)
+  setError('')
+
+  try {
+    // Public data available to all visitors
+    const [p, s] = await Promise.all([
+      api<Product[]>('/api/catalog/products'),
+      api<Stock[]>('/api/inventory/stock')
+    ])
+
+    setProducts(p)
+    setStock(s)
+
+    // Protected data available only to admins
+    if (isAdminSessionActive()) {
+      const [c, o, n] = await Promise.all([
         api<Customer[]>('/api/customers'),
         api<Order[]>('/api/orders'),
         api<Notice[]>('/api/notifications')
       ])
 
-      setProducts(p)
-      setStock(s)
       setCustomers(c)
       setOrders(o)
       setNotices(n)
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : 'Unable to connect to API. Start the services with docker compose up --build.'
-      )
-    } finally {
-      setLoading(false)
+    } else {
+      setCustomers([])
+      setOrders([])
+      setNotices([])
     }
+  } catch (e) {
+    setError(
+      e instanceof Error
+        ? e.message
+        : 'Unable to connect to API.'
+    )
+  } finally {
+    setLoading(false)
   }
+}
+
 
   useEffect(() => {
     load()
@@ -84,6 +114,47 @@ function App() {
     setToast(msg)
     window.setTimeout(() => setToast(''), 3200)
   }
+
+
+    async function handleAdminLogin(e: React.FormEvent<HTMLFormElement>) {
+      e.preventDefault()
+      setLoginError('')
+      setLoginLoading(true)
+
+      try {
+        // Credentials are kept in memory, never in localStorage.
+        setAdminCredentials(loginUsername, loginPassword)
+
+        // Verify credentials using a protected endpoint.
+        await api<Customer[]>('/api/customers')
+
+        setIsAdmin(true)
+        setLoginOpen(false)
+        setLoginPassword('')
+        await load()
+        notify('Admin login successful')
+      } catch {
+        clearAdminCredentials()
+        setIsAdmin(false)
+        setLoginError('Invalid credentials or unable to reach the server')
+      } finally {
+        setLoginLoading(false)
+      }
+    }
+
+    function handleAdminLogout() {
+      clearAdminCredentials()
+      setIsAdmin(false)
+      setLoginPassword('')
+      closeModal()
+      setCustomers([])
+      setOrders([])
+      setNotices([])
+      setTab('Catalog')
+      setLoginOpen(false)
+      notify('Logged out successfully')
+    }
+
 
   const revenue = useMemo(
     () =>
@@ -105,6 +176,7 @@ function App() {
   )
 
   function openStockEdit(item: Stock) {
+    if (!isAdmin) return
     setEditingStock(item)
     setModal('edit-stock')
   }
@@ -134,6 +206,7 @@ function App() {
 
   async function submitForm(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (!isAdmin) return
 
     const data = Object.fromEntries(
       new FormData(e.currentTarget).entries()
@@ -225,6 +298,7 @@ function App() {
   }
 
   async function updateStatus(id: number, status: string) {
+    if (!isAdmin) return
     try {
       await api(`/api/orders/${id}/status`, {
         method: 'PATCH',
@@ -243,10 +317,109 @@ function App() {
   }
 
   const title =
-    tab === 'Overview' ? 'Good morning, Himanshu' : tab
+    tab === 'Overview'
+      ? isAdmin
+        ? 'Welcome back, Himanshu'
+        : 'Welcome to SupplyHub'
+      : tab
 
   return (
     <div className="app-shell">
+
+        {loginOpen && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.65)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 9999,
+              padding: 20
+            }}
+          >
+            <form
+              onSubmit={handleAdminLogin}
+              style={{
+                background: '#ffffff',
+                padding: 32,
+                borderRadius: 16,
+                width: '100%',
+                maxWidth: 400,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+                boxShadow: '0 20px 60px rgba(0,0,0,0.2)'
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <h2 style={{ margin: 0, color: '#0f172a' }}>
+                  Admin Login
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginOpen(false)
+                    setLoginPassword('')
+                    setLoginError('')
+                  }}
+                  aria-label="Close login"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <p style={{ margin: 0, color: '#64748b' }}>
+                Sign in to manage SupplyHub operations.
+              </p>
+
+              <label htmlFor="admin-username">Username</label>
+              <input
+                id="admin-username"
+                type="text"
+                autoComplete="username"
+                value={loginUsername}
+                onChange={e => setLoginUsername(e.target.value)}
+                required
+              />
+
+              <label htmlFor="admin-password">Password</label>
+              <input
+                id="admin-password"
+                type="password"
+                autoComplete="current-password"
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+                required
+              />
+
+              {loginError && (
+                <p role="alert" style={{ color: '#dc2626', margin: 0 }}>
+                  {loginError}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={loginLoading}
+              >
+                {loginLoading ? 'Signing in...' : 'Sign In'}
+              </button>
+            </form>
+          </div>
+        )}
+
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
@@ -270,7 +443,9 @@ function App() {
         <div className="nav-label">WORKSPACE</div>
 
         <nav>
-          {nav.map(n => (
+          {nav
+            .filter(n => isAdmin || ['Overview', 'Catalog', 'Inventory'].includes(n.name))
+            .map(n => (
             <button
               key={n.name}
               className={
@@ -305,10 +480,10 @@ function App() {
           </div>
 
           <div className="profile">
-            <div className="profile-avatar">HP</div>
+            <div className="profile-avatar">{isAdmin ? 'HP' : 'G'}</div>
             <div>
-              <b>Himanshu Patil</b>
-              <small>Workspace admin</small>
+              <b>{isAdmin ? 'Himanshu Patil' : 'Guest Visitor'}</b>
+              <small>{isAdmin ? 'Workspace admin' : 'Guest access'}</small>
             </div>
             <span>•••</span>
           </div>
@@ -332,7 +507,37 @@ function App() {
             >
               <RefreshCw size={17} />
             </button>
-            <div className="top-avatar">HP</div>
+
+            {isAdmin ? (
+              <>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>
+                  Admin
+                </span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleAdminLogout}
+                >
+                  Logout
+                </button>
+                <div className="top-avatar">HP</div>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => {
+                    setLoginError('')
+                    setLoginOpen(true)
+                  }}
+                >
+                  Admin Login
+                </button>
+                <div className="top-avatar">G</div>
+              </>
+            )}
+
           </div>
         </header>
 
@@ -356,6 +561,7 @@ function App() {
                 Refresh
               </button>
 
+              {isAdmin && (
               <button
                 className="btn-primary"
                 onClick={() => {
@@ -377,6 +583,7 @@ function App() {
                       ? 'Add customer'
                       : 'Create order'}
               </button>
+              )}
             </div>
           </div>
 
@@ -392,39 +599,32 @@ function App() {
           {tab === 'Overview' && (
             <>
               <div className="metrics-grid">
-                <Metric
-                  label="Gross order value"
-                  value={money(revenue)}
-                  change={`${orders.length} total orders`}
-                  icon={CircleDollarSign}
-                  tone="violet"
-                />
-                <Metric
-                  label="Active customers"
-                  value={String(customers.filter(
-                    c => c.status !== 'INACTIVE'
-                  ).length)}
-                  change={`${customers.length} registered accounts`}
-                  icon={Users}
-                  tone="blue"
-                />
-                <Metric
-                  label="Products in catalog"
-                  value={String(products.length)}
+                {isAdmin ? (
+                  <>
+                    <Metric label="Gross order value" value={money(revenue)}
+                      change={`${orders.length} total orders`} icon={CircleDollarSign} tone="violet" />
+                    <Metric label="Active customers"
+                      value={String(customers.filter(c => c.status !== 'INACTIVE').length)}
+                      change={`${customers.length} registered accounts`} icon={Users} tone="blue" />
+                  </>
+                ) : (
+                  <>
+                    <Metric label="Active products"
+                      value={String(products.filter(p => p.active).length)}
+                      change="Available catalog listings" icon={Package} tone="violet" />
+                    <Metric label="Inventory records" value={String(stock.length)}
+                      change="Tracked inventory entries" icon={Boxes} tone="blue" />
+                  </>
+                )}
+                <Metric label="Products in catalog" value={String(products.length)}
                   change={`${products.filter(p => p.active).length} active listings`}
-                  icon={Package}
-                  tone="orange"
-                />
-                <Metric
-                  label="Low stock alerts"
-                  value={String(lowStock.length)}
-                  change="Needs replenishment"
-                  icon={Boxes}
-                  tone="red"
-                />
+                  icon={Package} tone="orange" />
+                <Metric label="Low stock alerts" value={String(lowStock.length)}
+                  change="Needs replenishment" icon={Boxes} tone="red" />
               </div>
 
               <div className="overview-grid">
+                {isAdmin && (
                 <section className="panel orders-panel">
                   <div className="panel-heading">
                     <div>
@@ -444,6 +644,7 @@ function App() {
                   />
                 </section>
 
+                )}
                 <section className="panel stock-panel">
                   <div className="panel-heading">
                     <div>
@@ -487,6 +688,7 @@ function App() {
                   )}
                 </section>
 
+                {isAdmin && (
                 <section className="panel activity-panel">
                   <div className="panel-heading">
                     <div>
@@ -502,6 +704,7 @@ function App() {
                   </div>
                   <ActivityList notices={notices.slice(0, 4)} />
                 </section>
+                )}
               </div>
             </>
           )}
@@ -618,7 +821,7 @@ function App() {
                       <th>RESERVED</th>
                       <th>REORDER AT</th>
                       <th>HEALTH</th>
-                      <th>ACTIONS</th>
+                      {isAdmin && <th>ACTIONS</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -663,15 +866,17 @@ function App() {
                               }
                             />
                           </td>
-                          <td>
-                            <button
-                              type="button"
-                              className="btn-secondary"
-                              onClick={() => openStockEdit(s)}
-                            >
-                              Edit stock
-                            </button>
-                          </td>
+                          {isAdmin && (
+                            <td>
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => openStockEdit(s)}
+                              >
+                                Edit stock
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                   </tbody>
@@ -756,7 +961,7 @@ function App() {
         </div>
       </main>
 
-      {modal && (
+      {isAdmin && modal && (
         <div
           className="modal-backdrop"
           onMouseDown={e => {
