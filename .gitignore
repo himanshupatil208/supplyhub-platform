@@ -1,0 +1,46 @@
+﻿# IntelliJ IDEA
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# Java / Maven
+target/
+*.class
+*.log
+
+# Node.js / React
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+
+# PostgreSQL local data
+pgdata/
+postgres-data/
+
+# Terraform state (future AWS setup)
+.terraform/
+*.tfstate
+*.tfstate.*

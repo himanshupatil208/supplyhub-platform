@@ -1,0 +1,60 @@
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:5173"
+              - "http://localhost:5174"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - "*"
+            allowCredentials: true
+            maxAge: 3600
+
+      routes:
+        - id: catalog
+          uri: http://catalog-service:8081
+          predicates:
+            - Path=/api/catalog/**
+
+        - id: inventory
+          uri: http://inventory-service:8082
+          predicates:
+            - Path=/api/inventory/**
+
+        - id: customers
+          uri: http://customer-service:8083
+          predicates:
+            - Path=/api/customers/**
+
+        - id: orders
+          uri: http://order-service:8084
+          predicates:
+            - Path=/api/orders/**
+
+        - id: notifications
+          uri: http://notification-service:8085
+          predicates:
+            - Path=/api/notifications/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

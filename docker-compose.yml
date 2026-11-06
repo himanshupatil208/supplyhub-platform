@@ -1,0 +1,88 @@
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: supplyhub-postgres
+    environment:
+      POSTGRES_DB: supplyhub
+      POSTGRES_USER: supplyhub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports: ["5433:5432"]
+    volumes:
+      - supplyhub_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supplyhub -d supplyhub"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  catalog-service:
+    build: ./services/catalog-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplyhub?currentSchema=catalog
+      SPRING_DATASOURCE_USERNAME: supplyhub
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  inventory-service:
+    build: ./services/inventory-service
+    environment:
+      CATALOG_SERVICE_URL: http://catalog-service:8081
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplyhub?currentSchema=inventory
+      SPRING_DATASOURCE_USERNAME: supplyhub
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  customer-service:
+    build: ./services/customer-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplyhub?currentSchema=customers
+      SPRING_DATASOURCE_USERNAME: supplyhub
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  order-service:
+    build: ./services/order-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplyhub?currentSchema=orders
+      SPRING_DATASOURCE_USERNAME: supplyhub
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      INVENTORY_SERVICE_URL: http://inventory-service:8082
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
+    depends_on:
+      postgres: { condition: service_healthy }
+      inventory-service: { condition: service_started }
+      notification-service: { condition: service_started }
+
+  notification-service:
+    build: ./services/notification-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/supplyhub?currentSchema=notifications
+      SPRING_DATASOURCE_USERNAME: supplyhub
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api-gateway:
+    build: ./services/api-gateway
+    ports: ["8080:8080"]
+    depends_on:
+      - catalog-service
+      - inventory-service
+      - customer-service
+      - order-service
+      - notification-service
+
+  frontend:
+    build: ./frontend
+    ports: ["5173:5173"]
+    environment:
+      VITE_API_BASE_URL: http://localhost:8080
+    depends_on: [api-gateway]
+
+volumes:
+  supplyhub_data:

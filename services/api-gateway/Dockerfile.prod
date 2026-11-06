@@ -1,0 +1,27 @@
+# Stage 1: Build Spring Boot application
+FROM maven:3.9.9-eclipse-temurin-21 AS build
+
+WORKDIR /app
+
+COPY pom.xml .
+COPY src ./src
+
+RUN mvn -B -DskipTests package
+
+# Stage 2: Production runtime
+FROM eclipse-temurin:21-jre
+
+WORKDIR /app
+
+# Create non-root user
+RUN groupadd --system spring && \
+    useradd --system --gid spring spring
+
+COPY --from=build --chown=spring:spring /app/target/*.jar app.jar
+
+USER spring
+
+# JVM container memory configuration
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=65.0 -XX:+ExitOnOutOfMemoryError"
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

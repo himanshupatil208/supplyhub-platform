@@ -1,0 +1,96 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+:root {
+  font-family:'DM Sans',sans-serif;
+  color:#182230;
+  background:#f6f8fb;
+  font-synthesis:none;
+  text-rendering:optimizeLegibility
+}
+* {
+  box-sizing:border-box
+}
+body {
+  margin:0;
+  min-width:320px
+}
+.app-shell {
+  min-height:100vh
+}
+.sidebar {
+  width:252px;
+  background:#111b2b;
+  color:#d6deea;
+  position:fixed;
+  inset:0 auto 0 0;
+  padding:25px 16px 16px;
+  display:flex;
+  flex-direction:column;
+  z-index:3
+}
+.brand {
+  display:flex;
+  align-items:center;
+  gap:11px;
+  padding:0 10px 27px
+}
+.brand-mark {
+  width:37px;
+  height:37px;
+  border-radius:11px;
+  background:#d6f36a;
+  color:#182331;
+  display:grid;
+  place-items:center
+}
+.brand b {
+  font:800 20px Manrope;
+  letter-spacing:-.8px;
+  color:white;
+  display:block
+}
+.brand small {
+  font-size:8px;
+  letter-spacing:1.7px;
+  color:#8e9caf;
+  font-weight:700
+}
+.workspace {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:12px 10px;
+  background:#1b293b;
+  border:1px solid #2a394d;
+  border-radius:10px;
+  margin-bottom:30px
+}
+.workspace-avatar,.profile-avatar,.top-avatar {
+  display:grid;
+  place-items:center;
+  border-radius:9px;
+  font-weight:700
+}
+.workspace-avatar {
+  width:32px;
+  height:32px;
+  background:#d6f36a;
+  color:#172333
+}
+.workspace b,.profile b {
+  font-size:11px;
+  display:block;
+  color:#f3f6fa
+}
+.workspace small,.profile small {
+  font-size:9px;
+  color:#8c9aab;
+  display:block;
+  margin-top:3px
+}
+.workspace>svg {
+  margin-left:auto;
+  color:#8c9aab
+}
+.nav-label {
+  font-size:9px;
+  letter-spacing:1.5px;
