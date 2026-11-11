@@ -74,7 +74,8 @@ public class SecurityConfig {
                 config.setAllowedOrigins(List.of(
                         "http://localhost:5173",
                         "http://localhost:5174",
-                        "http://localhost:8088"
+                        "http://localhost:8088",
+                        "https://supplyhub.duckdns.org"
                 ));
 
                 config.setAllowedMethods(List.of(
